@@ -8,6 +8,23 @@ from datasets import load_dataset
 
 
 
+from gensim.models.callbacks import CallbackAny2Vec
+
+class EpochPrinter(CallbackAny2Vec):
+    """Callback per stampare il progresso delle epoche."""
+    def __init__(self):
+        self.epoch = 0
+
+    def on_epoch_end(self, model):
+        """Viene chiamato alla fine di ogni epoca."""
+        self.epoch += 1
+        print(f"Epoch {self.epoch}/{model.epochs}")
+
+
+
+
+
+
 class HANTextDataset:
     def __init__(self, texts, min_frequency, embedding_dim):
         self.texts = texts
@@ -19,7 +36,7 @@ class HANTextDataset:
 
         # Build vocabulary
         self.vocab = self.build_vocabulary()
-        #print vocabulary
+        # print vocabulary
         print(self.vocab)
 
         # Train Word2Vec
@@ -40,15 +57,23 @@ class HANTextDataset:
             raise Exception("Error in CoreNLP request")
 
     def tokenize_and_process_texts(self):
-        """Tokenizes texts and stores them in a list."""
+        """Tokenizes texts and stores them in a list, printing progress every 100 texts."""
         tokenized_texts = []  # Store tokenized texts
-        for text in self.texts:
+        total_texts = len(self.texts)
+
+        for idx, text in enumerate(self.texts):
+            # Print progress every 100 texts
+            if (idx + 1) % 100 == 0:
+                progress = (idx + 1) / total_texts * 100
+                print(f"Progress: {idx + 1}/{total_texts} ({progress:.2f}%)")
+
             json_data = self.tokenize_with_stanford(text)
             tokenized_doc = []  # Store tokenized sentences
             for sentence in json_data["sentences"]:  # Iterate over sentences
                 tokenized_sentence = [token["word"].lower() for token in sentence["tokens"]]
                 tokenized_doc.append(tokenized_sentence)
             tokenized_texts.append(tokenized_doc)
+
         return tokenized_texts
 
     def build_vocabulary(self):
@@ -64,9 +89,17 @@ class HANTextDataset:
         return vocab
 
     def train_word2vec(self):
-        """Trains a Word2Vec model on the processed text."""
+        """Trains a Word2Vec model on the processed text, printing progress during training."""
         sentences = [sentence for text in self.processed_texts for sentence in text]  # Flattens the list
-        model = Word2Vec(sentences, vector_size=self.embedding_dim, window=5, min_count=5, sg=1, workers=4)
+        model = Word2Vec(sentences, vector_size=self.embedding_dim, window=5, min_count=5, sg=1, workers=4, epochs=10)
+
+        # Crea un'istanza della callback
+        epoch_printer = EpochPrinter()
+
+        # Allena il modello utilizzando la callback
+        model.train(sentences, total_examples=model.corpus_count, epochs=model.epochs, report_delay=1,
+                    compute_loss=True, callbacks=[epoch_printer])
+
         return model
 
     def build_embedding_matrix(self):
@@ -75,10 +108,12 @@ class HANTextDataset:
         embedding_matrix = np.zeros((vocab_size, self.embedding_dim))
 
         for word, index in self.vocab.items():
-            if word in self.word2vec_model.wv.key_to_index:
-                embedding_matrix[index] = self.word2vec_model.wv[word]
-            else:
-                embedding_matrix[index] = np.random.uniform(-0.25, 0.25, self.embedding_dim)  # Random init for unknown words
+            if index < vocab_size:  # Verifica che l'indice non superi i limiti
+                if word in self.word2vec_model.wv.key_to_index:
+                    embedding_matrix[index] = self.word2vec_model.wv[word]
+                else:
+                    embedding_matrix[index] = np.random.uniform(-0.25, 0.25,
+                                                                self.embedding_dim)  # Random init for unknown words
 
         return embedding_matrix
 
@@ -87,7 +122,7 @@ class HANTextDataset:
 texts = [
     "Stanford CoreNLP is a powerful tool for NLP.",
     "We train Word2Vec on the training and validation set.",
-    "The embedding dimension is set to 200."
+    "The embedding dimension is set to 200.",
     "Stanford Stanford Stanford Stanford Stanford Stanford"
 ]
 
@@ -97,7 +132,7 @@ print("Processed Texts:", dataset.processed_texts)
 print("Vocabulary:", dataset.vocab)
 print("Embedding Matrix Shape:", dataset.embedding_matrix.shape)
 
-#load Stanford Sentiment Treebank (SST) dataset
+# load Stanford Sentiment Treebank (SST) dataset
 sst_dataset = load_dataset("glue", "sst2")
 train_texts = sst_dataset['train']['sentence']
 print(train_texts[:5])
@@ -105,4 +140,5 @@ print(train_texts[:5])
 dataset = HANTextDataset(train_texts, min_frequency=5, embedding_dim=200)
 print("Processed Texts:", dataset.processed_texts)
 print("Vocabulary:", dataset.vocab)
+print("vocub size:", len(dataset.vocab))
 print("Embedding Matrix Shape:", dataset.embedding_matrix.shape)
