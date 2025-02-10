@@ -1,14 +1,18 @@
 # cd C:/Users/diges/Desktop/stanford-corenlp-4.5.8
 # java -mx1g -cp "*" edu.stanford.nlp.pipeline.StanfordCoreNLPServer -port 9000 -timeout 15000
+import argparse
+from types import SimpleNamespace
+
 import numpy as np
 import requests
 from collections import Counter
+
+import yaml
 from gensim.models import Word2Vec
 from datasets import load_dataset
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
-
 
 from gensim.models.callbacks import CallbackAny2Vec
 
@@ -26,10 +30,10 @@ class EpochPrinter(CallbackAny2Vec):
 
 
 class HANTextDataset:
-    def __init__(self, texts, min_frequency, embedding_dim):
+    def __init__(self, texts, opts):
         self.texts = texts
-        self.min_frequency = min_frequency
-        self.embedding_dim = embedding_dim
+        self.min_frequency = opts.word_embedding_min_frequency
+        self.embedding_dim = opts.word_embedding_dim
 
         # Tokenize all texts once
         self.processed_texts = self.tokenize_and_process_texts()
@@ -166,14 +170,19 @@ class HANTextDataset:
 
 class MakeDataLoader:
     def __init__(self, opts, dataset):
-        train, test, validation = torch.utils.data.random_split(dataset, [int(opts.train_size * len(dataset)), int(opts.test_size * len(dataset)), int(opts.validation_size * len(dataset))])
+        train, test, validation = torch.utils.data.random_split(dataset, [int(opts.train_size * len(dataset)),
+                                                                          int(opts.test_size * len(dataset)),
+                                                                          int(opts.validation_size * len(dataset))])
 
-        self.train_loader = DataLoader(train, batch_size=opts.batch_size, shuffle=True, collate_fn=HANTextDataset.custom_collate)
-        self.test_loader = DataLoader(test, batch_size=opts.batch_size, shuffle=True, collate_fn=HANTextDataset.custom_collate)
-        self.validation_loader = DataLoader(validation, batch_size=opts.batch_size, shuffle=True, collate_fn=HANTextDataset.custom_collate)
+        self.train_loader = DataLoader(train, batch_size=opts.batch_size, shuffle=True,
+                                       collate_fn=HANTextDataset.custom_collate)
+        self.test_loader = DataLoader(test, batch_size=opts.batch_size, shuffle=True,
+                                      collate_fn=HANTextDataset.custom_collate)
+        self.validation_loader = DataLoader(validation, batch_size=opts.batch_size, shuffle=True,
+                                            collate_fn=HANTextDataset.custom_collate)
 
 
-# load Stanford Sentiment Treebank (SST) dataset
+""""# load Stanford Sentiment Treebank (SST) dataset
 sst_dataset = load_dataset("glue", "sst2")
 train_texts = sst_dataset['train']['sentence']
 print(train_texts[:5])
@@ -185,11 +194,9 @@ train_subset = train_texts[:subset_size]
 
 dataset = HANTextDataset(train_subset, min_frequency=5, embedding_dim=200)
 print("Processed Texts:", dataset.processed_texts)
-#print("Vocabulary:", dataset.vocab)
+# print("Vocabulary:", dataset.vocab)
 print("vocab size:", len(dataset.vocab))
 print("Embedding Matrix Shape:", dataset.embedding_matrix.shape)
-
-
 
 dataloader = DataLoader(dataset, batch_size=64, collate_fn=HANTextDataset.custom_collate)
 
@@ -206,4 +213,53 @@ for idx, doc in enumerate(dataset.processed_texts):
         print(sentence)
     print()
     if idx == 4:
+        break"""
+
+
+
+
+def main(opts):
+    # load Stanford Sentiment Treebank (SST) dataset
+    sst_dataset = load_dataset("glue", "sst2")
+    train_texts = sst_dataset['train']['sentence']
+    print(train_texts[:5])
+
+    subset_ratio = 0.1  # 10% del dataset
+    subset_size = int(len(train_texts) * subset_ratio)
+
+    train_subset = train_texts[:subset_size]
+
+    dataset = HANTextDataset(train_subset, opts)
+    print("Processed Texts:", dataset.processed_texts)
+    # print("Vocabulary:", dataset.vocab)
+    print("vocab size:", len(dataset.vocab))
+    print("Embedding Matrix Shape:", dataset.embedding_matrix.shape)
+
+    dataloader = MakeDataLoader(opts, dataset)
+    print(len(dataloader.train_loader))
+    print(len(dataloader.test_loader))
+    print(len(dataloader.validation_loader))
+    # Estrai un batch di dati
+    for batch in dataloader.train_loader:
+        print("Batch shape:", batch.shape)  # Deve essere (batch_size, max_sentences, max_words)
+        print("Esempio di documento:", batch[0])  # Stampa il primo documento tensorizzato
+        print("Esempio di documento (decodificato):", batch[0].tolist())  # Stampa il primo documento decodificato
         break
+
+    for idx, doc in enumerate(dataset.processed_texts):
+        print(f"Document {idx + 1}: {len(doc)} sentences")
+        for sentence in doc:
+            print(sentence)
+        print()
+        if idx == 4:
+            break
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", help='YAML Configuration file')
+    opts = yaml.load(open(parser.parse_args().config), Loader=yaml.Loader)
+    opts = SimpleNamespace(**opts)
+    opts.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    main(opts)
+
