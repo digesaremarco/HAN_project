@@ -1,38 +1,31 @@
-# Model Configuration
+# GRU model parameters
+gru_input_dim: 200          # Word embedding dimension
+gru_hidden_dim: 50          # GRU output dimension per word
+gru_bidirectional: true     # Use a bidirectional GRU
+gru_output_dim: 100         # Word/sentence annotation dimension (forward + backward)
+gru_num_layers: 1           # Number of GRU layers
 
-# Parameters for the GRU model
-gru:
-  input_dim: 200          # Word embedding dimension
-  hidden_dim: 50          # GRU output dimension per word
-  bidirectional: true     # Use a bidirectional GRU
-  output_dim: 100         # Word/sentence annotation dimension (forward + backward)
-  num_layers: 1           # Number of GRU layers
-
-# Parameters for word embeddings
-word_embedding:
-  dim: 200                # Word embedding dimension
-  min_count: 5            # Minimum frequency for words to be included in the vocabulary
+# Word embedding parameters
+word_embedding_dim: 200                # Word embedding dimension
+word_embedding_min_frequency: 5        # Minimum frequency for words to be included in the vocabulary
 
 # Batch parameters
 batch_size: 64            # Batch size
 
 # Training parameters
-optimizer:
-  type: "SGD"             # Optimizer type
-  momentum: 0.9            # Momentum for the SGD optimizer
-  learning_rate_search: true  # Perform grid search to find the best learning rate
+optimizer_type: "SGD"             # Optimizer type
+optimizer_momentum: 0.9           # Momentum for the SGD optimizer
+learning_rate_search: true        # Perform grid search to find the best learning rate
 
 # Training settings
 train_size: 0.8          # Training set size
-test_size: 0.1          # Test set size
-validation_size: 0.1    # Validation set size
+test_size: 0.1           # Test set size
+validation_size: 0.1     # Validation set size
 
 # Tokenization parameters
-tokenization:
-  tool: "StanfordCoreNLP"  # Tokenization tool
-  annotators: "tokenize,ssplit"  # Annotators to use (tokenization and sentence splitting)
+tokenization_tool: "StanfordCoreNLP"  # Tokenization tool
+tokenization_annotators: "tokenize,ssplit"  # Annotators to use (tokenization and sentence splitting)
 
 # Context vector initialization
-context_vectors:
-  random_init: true         # Random initialization of context vectors
-  dim: 100                  # Dimension of word/sentence context vectors
+context_vectors_random_init: true         # Random initialization of context vectors
+context_vectors_dim: 100                  # Dimension of word/sentence context vectors
