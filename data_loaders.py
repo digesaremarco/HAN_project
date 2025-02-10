@@ -93,10 +93,10 @@ class HANTextDataset:
         sentences = [sentence for text in self.processed_texts for sentence in text]  # Flattens the list
         model = Word2Vec(sentences, vector_size=self.embedding_dim, window=5, min_count=5, sg=1, workers=4, epochs=10)
 
-        # Crea un'istanza della callback
+        # Create a callback to print the epoch
         epoch_printer = EpochPrinter()
 
-        # Allena il modello utilizzando la callback
+        # Train the model with the callback
         model.train(sentences, total_examples=model.corpus_count, epochs=model.epochs, report_delay=1,
                     compute_loss=True, callbacks=[epoch_printer])
 
@@ -121,12 +121,12 @@ class HANTextDataset:
     def custom_collate(batch):
         """Collate function per organizzare i documenti in batch di lunghezza simile e applicare padding."""
 
-        # 1. Trova il numero massimo di frasi nel batch
+        # Find the maximum number of sentences and words in the batch
         max_num_sentences = max(len(doc) for doc in batch)
         max_num_words = max(
             max(len(sentence) for sentence in doc) for doc in batch)  # Trova il numero massimo di parole per frase
 
-        # 2. Applica padding alle frasi per avere la stessa lunghezza (word padding)
+        # Pad the documents to have the same number of sentences and words
         padded_docs = []
         for doc in batch:
             padded_sentences = []
@@ -138,7 +138,7 @@ class HANTextDataset:
                     padded_sentence = torch.cat([padded_sentence, torch.zeros(pad_length, dtype=torch.long)])
                 padded_sentences.append(padded_sentence)
 
-            # 3. Se un documento ha meno frasi del massimo, aggiungi frasi vuote (sentence padding)
+            # If the document has fewer sentences than the maximum, pad the sentences
             if len(padded_sentences) < max_num_sentences:
                 pad_sentences = torch.zeros(
                     (max_num_sentences - len(padded_sentences), max_num_words), dtype=torch.long
@@ -147,7 +147,7 @@ class HANTextDataset:
 
             padded_docs.append(torch.stack(padded_sentences))
 
-        # 4. Converte tutto in un batch tensorizzato
+        # Stack the padded documents to create a batch tensor
         batch_tensor = torch.stack(padded_docs)  # (batch_size, max_sentences, max_words)
 
         return batch_tensor
@@ -163,6 +163,14 @@ class HANTextDataset:
         ]
         return indexed_doc
 
+
+class MakeDataLoader:
+    def __init__(self, opts, dataset):
+        train, test, validation = torch.utils.data.random_split(dataset, [int(opts.train_size * len(dataset)), int(opts.test_size * len(dataset)), int(opts.validation_size * len(dataset))])
+
+        self.train_loader = DataLoader(train, batch_size=opts.batch_size, shuffle=True, collate_fn=HANTextDataset.custom_collate)
+        self.test_loader = DataLoader(test, batch_size=opts.batch_size, shuffle=True, collate_fn=HANTextDataset.custom_collate)
+        self.validation_loader = DataLoader(validation, batch_size=opts.batch_size, shuffle=True, collate_fn=HANTextDataset.custom_collate)
 
 
 # load Stanford Sentiment Treebank (SST) dataset
