@@ -5,24 +5,24 @@ import requests
 from collections import Counter
 from gensim.models import Word2Vec
 from datasets import load_dataset
-
+import torch
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
 
 
 from gensim.models.callbacks import CallbackAny2Vec
 
+
 class EpochPrinter(CallbackAny2Vec):
-    """Callback per stampare il progresso delle epoche."""
+    """Callback to print each epoch."""
+
     def __init__(self):
         self.epoch = 0
 
     def on_epoch_end(self, model):
-        """Viene chiamato alla fine di ogni epoca."""
+        """Called at the end of each epoch."""
         self.epoch += 1
         print(f"Epoch {self.epoch}/{model.epochs}")
-
-
-
-
 
 
 class HANTextDataset:
@@ -117,28 +117,85 @@ class HANTextDataset:
 
         return embedding_matrix
 
+    # documents of similar length (in terms of the number of sentences in the documents) are organized to be a batch. This is done to ensure that the model can be trained efficiently using mini-batch training.
+    def custom_collate(batch):
+        """Collate function per organizzare i documenti in batch di lunghezza simile e applicare padding."""
 
-# Example usage
-texts = [
-    "Stanford CoreNLP is a powerful tool for NLP.",
-    "We train Word2Vec on the training and validation set.",
-    "The embedding dimension is set to 200.",
-    "Stanford Stanford Stanford Stanford Stanford Stanford"
-]
+        # 1. Trova il numero massimo di frasi nel batch
+        max_num_sentences = max(len(doc) for doc in batch)
+        max_num_words = max(
+            max(len(sentence) for sentence in doc) for doc in batch)  # Trova il numero massimo di parole per frase
 
-dataset = HANTextDataset(texts, min_frequency=5, embedding_dim=200)
+        # 2. Applica padding alle frasi per avere la stessa lunghezza (word padding)
+        padded_docs = []
+        for doc in batch:
+            padded_sentences = []
+            for sentence in doc:
+                # Padding per ogni frase (pad alle parole)
+                padded_sentence = torch.tensor(sentence, dtype=torch.long)
+                if padded_sentence.size(0) < max_num_words:
+                    pad_length = max_num_words - padded_sentence.size(0)
+                    padded_sentence = torch.cat([padded_sentence, torch.zeros(pad_length, dtype=torch.long)])
+                padded_sentences.append(padded_sentence)
 
-print("Processed Texts:", dataset.processed_texts)
-print("Vocabulary:", dataset.vocab)
-print("Embedding Matrix Shape:", dataset.embedding_matrix.shape)
+            # 3. Se un documento ha meno frasi del massimo, aggiungi frasi vuote (sentence padding)
+            if len(padded_sentences) < max_num_sentences:
+                pad_sentences = torch.zeros(
+                    (max_num_sentences - len(padded_sentences), max_num_words), dtype=torch.long
+                )
+                padded_sentences.extend(pad_sentences)
+
+            padded_docs.append(torch.stack(padded_sentences))
+
+        # 4. Converte tutto in un batch tensorizzato
+        batch_tensor = torch.stack(padded_docs)  # (batch_size, max_sentences, max_words)
+
+        return batch_tensor
+
+    def __len__(self):
+        return len(self.processed_texts)
+
+    def __getitem__(self, idx):
+        """Restituisce il documento con parole convertite in indici numerici"""
+        indexed_doc = [
+            [self.vocab.get(word, self.vocab['UNK']) for word in sentence]
+            for sentence in self.processed_texts[idx]
+        ]
+        return indexed_doc
+
+
 
 # load Stanford Sentiment Treebank (SST) dataset
 sst_dataset = load_dataset("glue", "sst2")
 train_texts = sst_dataset['train']['sentence']
 print(train_texts[:5])
 
-dataset = HANTextDataset(train_texts, min_frequency=5, embedding_dim=200)
+subset_ratio = 0.1  # 10% del dataset
+subset_size = int(len(train_texts) * subset_ratio)
+
+train_subset = train_texts[:subset_size]
+
+dataset = HANTextDataset(train_subset, min_frequency=5, embedding_dim=200)
 print("Processed Texts:", dataset.processed_texts)
-print("Vocabulary:", dataset.vocab)
-print("vocub size:", len(dataset.vocab))
+#print("Vocabulary:", dataset.vocab)
+print("vocab size:", len(dataset.vocab))
 print("Embedding Matrix Shape:", dataset.embedding_matrix.shape)
+
+
+
+dataloader = DataLoader(dataset, batch_size=64, collate_fn=HANTextDataset.custom_collate)
+
+# Estrai un batch di dati
+for batch in dataloader:
+    print("Batch shape:", batch.shape)  # Deve essere (batch_size, max_sentences, max_words)
+    print("Esempio di documento:", batch[0])  # Stampa il primo documento tensorizzato
+    print("Esempio di documento (decodificato):", batch[0].tolist())  # Stampa il primo documento decodificato
+    break
+
+for idx, doc in enumerate(dataset.processed_texts):
+    print(f"Document {idx + 1}: {len(doc)} sentences")
+    for sentence in doc:
+        print(sentence)
+    print()
+    if idx == 4:
+        break
