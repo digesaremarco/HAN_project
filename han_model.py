@@ -37,3 +37,17 @@ class SentenceAttention(nn.Module):
         document_vector = torch.sum(attention_weights * h, dim=1)  # Document vector obtained by weighted sum
         return self.output_layer(document_vector)
 
+
+class HAN(nn.Module):
+    def __init__(self, opts, embedding_matrix):
+        super(HAN, self).__init__()
+        self.word_attention = WordAttention(opts)
+        self.sentence_attention = SentenceAttention(opts)
+        self.embedding = nn.Embedding.from_pretrained(embedding_matrix, freeze=False) # embedding layer
+
+    def forward(self, x):
+        """ Forward pass of the model, which is used to get the output. """
+        word_embedding = self.embedding(x) # word embedding
+        word_context = self.word_attention(word_embedding)
+        sentence_context = self.sentence_attention(word_context)
+        return sentence_context
