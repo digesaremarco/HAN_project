@@ -1,4 +1,5 @@
 import torch
+import han_model
 
 
 def save_checkpoint(model, optimizer, epoch, loss):
@@ -10,4 +11,65 @@ def save_checkpoint(model, optimizer, epoch, loss):
                 loss=loss)
     torch.save(info, fname)
     print(f"Model saved to {fname}")
+
+
+def grid_search_lr(embedding_matrix, train, validation, loss_fn, opts, device):
+    """ Grid search for the best learning rate based on accuracy """
+    lrs = [1e-2, 1e-3, 1e-4]
+
+    best_lr = None
+    best_acc = 0  # Initialize the best accuracy
+
+    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    for lr in lrs:
+        print(f"Testing learning rate: {lr}")
+
+        # Reinitialize the model and optimizer for each learning rate
+        model = han_model.HAN(opts, embedding_matrix).to(device)  # Reinitialize the model if necessary
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=opts.optimizer_momentum)
+
+        for epoch in range(3):  # Number of epochs for grid search
+            model.train()  # set the model to training mode
+            correct_train = 0
+            total_train = 0
+            for x, y in train:
+                x, y = x.to(device), y.to(device)
+                optimizer.zero_grad()  # zero the gradients
+                y_pred = torch.softmax(model(x), dim=1)  # get the prediction
+                loss = loss_fn(y_pred, y)  # calculate the loss
+                loss.backward()
+                optimizer.step()
+
+                # Calculate accuracy during training
+                _, predicted = torch.max(y_pred, 1)
+                correct_train += (predicted == y).sum().item()
+                total_train += y.size(0)
+
+            train_acc = correct_train / total_train  # Average accuracy on training
+            print(f'Epoch {epoch+1}, Training Accuracy: {train_acc:.6f}')
+
+            # Evaluate the model on the validation set
+            model.eval()  # set the model to evaluation mode
+            correct_val = 0
+            total_val = 0
+            with torch.no_grad():  # disable gradient calculation for validation to save memory
+                for x, y in validation:
+                    x, y = x.to(opts.device), y.to(opts.device)
+                    y_pred = torch.softmax(model(x), dim=1)
+
+                    # Calculate accuracy on validation
+                    _, predicted = torch.max(y_pred, 1)
+                    correct_val += (predicted == y).sum().item()
+                    total_val += y.size(0)
+
+            val_acc = correct_val / total_val  # Average accuracy on validation
+            print(f'Validation Accuracy: {val_acc:.6f}')
+
+            if val_acc > best_acc:
+                best_acc = val_acc
+                best_lr = lr
+
+    print(f"Best learning rate: {best_lr} with validation accuracy: {best_acc:.6f}")
+    return best_lr
 
