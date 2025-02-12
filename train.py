@@ -1,6 +1,14 @@
+import argparse
+from types import SimpleNamespace
+
 import numpy as np
 import torch
+import yaml
+
 import han_model
+from datasets import load_dataset
+
+import data_loaders
 
 
 def save_checkpoint(model, optimizer, epoch, loss):
@@ -112,7 +120,8 @@ def train_loop(model, train_loader, test_loader, opts, learning_rate, device):
         for X, Y in train_loader:
             X, Y = X.to(device), Y.to(device)
             optimizer.zero_grad()
-            output = torch.softmax(model(X), dim=1)  # get the prediction with softmax
+            #output = torch.softmax(model(X), dim=1)  # get the prediction with softmax
+            output = model(X)
             loss = loss_fn(output, Y)
             loss.backward()
             optimizer.step()
@@ -131,4 +140,36 @@ def train_loop(model, train_loader, test_loader, opts, learning_rate, device):
         # Save the model checkpoint
         save_checkpoint(model, optimizer, epoch, train_loss)
 
+
+def main(opts):
+    # load Stanford Sentiment Treebank (SST) dataset
+    sst_dataset = load_dataset("glue", "sst2")
+    sst_dataset_train = sst_dataset['train']['sentence']
+    sst_dataset_test = sst_dataset['test']['sentence']
+    sst_dataset_validation = sst_dataset['validation']['sentence']
+    sst_dataset = sst_dataset_train + sst_dataset_test + sst_dataset_validation
+
+    dataset = data_loaders.HANTextDataset(sst_dataset, opts)
+    dataloader = data_loaders.MakeDataLoader(opts, dataset)
+    train_loader, test_loader = dataloader.train_loader, dataloader.test_loader
+
+    # Load the embedding matrix
+    embedding_matrix = dataset.embedding_matrix
+    model = han_model.HAN(opts, embedding_matrix)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Grid search for the best learning rate
+    best_lr = grid_search_lr(embedding_matrix, train_loader, test_loader, torch.nn.CrossEntropyLoss(), opts, device)
+
+    # Train the model
+    train_loop(model, train_loader, test_loader, opts, best_lr, device)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", help='YAML Configuration file')
+    opts = yaml.load(open(parser.parse_args().config), Loader=yaml.Loader)
+    opts = SimpleNamespace(**opts)
+    opts.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    main(opts)
 
