@@ -16,6 +16,7 @@ batch_size: 64            # Batch size
 optimizer_type: "SGD"             # Optimizer type
 optimizer_momentum: 0.9           # Momentum for the SGD optimizer
 learning_rate_search: true        # Perform grid search to find the best learning rate
+epochs: 10                        # Number of epochs
 
 # Training settings
 train_size: 0.8          # Training set size
