@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import yaml
 
-import evaluate
+import Evaluate
 import han_model
 from datasets import load_dataset
 
@@ -171,7 +171,7 @@ def main(opts):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    evaluate_obj = evaluate.evaluate(opts)
+    evaluate_obj = Evaluate.evaluate(opts)
 
     # Grid search for the best learning rate
     best_lr = grid_search_lr(embedding_matrix, train_loader, validation_loader, torch.nn.CrossEntropyLoss(), opts, device, evaluate_obj)
