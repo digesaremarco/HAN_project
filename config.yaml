@@ -16,7 +16,7 @@ batch_size: 64            # Batch size
 optimizer_type: "SGD"             # Optimizer type
 optimizer_momentum: 0.9           # Momentum for the SGD optimizer
 learning_rate_search: true        # Perform grid search to find the best learning rate
-epochs: 10                        # Number of epochs
+epochs: 50                         # Number of epochs
 
 # Training settings
 train_size: 0.8          # Training set size
@@ -30,3 +30,6 @@ tokenization_annotators: "tokenize,ssplit"  # Annotators to use (tokenization an
 # Context vector initialization
 context_vectors_random_init: true         # Random initialization of context vectors
 context_vectors_dim: 100                  # Dimension of word/sentence context vectors
+
+# Dataset parameters
+num_classes: 2            # Number of classes
