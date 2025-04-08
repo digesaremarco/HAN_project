@@ -5,9 +5,10 @@ import numpy as np
 import torch
 import yaml
 
-import Evaluate
+import evaluate
 import han_model
 from datasets import load_dataset
+from sklearn.datasets import fetch_20newsgroups
 
 import data_loaders
 
@@ -95,7 +96,7 @@ def grid_search_lr(embedding_matrix, train, validation, loss_fn, opts, device, e
     return best_lr
 
 
-def train_loop(model, train_loader, test_loader, opts, learning_rate, device, evaluate_obj):
+def train_loop(model, train_loader, validation_loader, opts, learning_rate, device, evaluate_obj):
     """ Train the model """
     model = model.to(device)
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=opts.optimizer_momentum)
@@ -125,53 +126,105 @@ def train_loop(model, train_loader, test_loader, opts, learning_rate, device, ev
         train_acc = sum(corrects) / total_samples
         print(f"Epoch {epoch + 1}, Training Loss: {train_loss:.6f}, Training Accuracy: {train_acc:.6f}")
 
-        test_acc = evaluate_obj.test_accuracy(model, test_loader, device)
-        evaluate_obj.add_accuracy(test_acc)
-        print(f"Test Accuracy: {test_acc:.6f}")
-        test_f1 = evaluate_obj.test_f1_score(model, test_loader, device)
-        evaluate_obj.add_f1_score(test_f1)
-        print(f"Test F1 Score: {test_f1:.6f}")
+        val_acc = evaluate_obj.test_accuracy(model, validation_loader, device)
+        evaluate_obj.add_accuracy(val_acc)
+        print(f"Validation Accuracy: {val_acc:.6f}")
+        val_f1 = evaluate_obj.test_f1_score(model, validation_loader, device)
+        evaluate_obj.add_f1_score(val_f1)
+        print(f"Validation F1 Score: {val_f1:.6f}")
 
         # Save the model checkpoint
         if epoch % 5 == 0:
             save_checkpoint(model, optimizer, epoch, train_loss)
 
 
+
+def filter_and_remap(dataset, target_classes, label_map, split):
+    ''' Filter the dataset to include only the target classes and remap the labels. '''
+    texts = dataset[split]['text']
+    labels = dataset[split]['label']
+
+    filtered_texts = []
+    filtered_labels = []
+
+    for text, label in zip(texts, labels):
+        if label in target_classes:
+            filtered_texts.append(text)
+            filtered_labels.append(label_map[label])
+
+    return filtered_texts, filtered_labels
+
+
 def main(opts):
-    # load Stanford Sentiment Treebank (SST) dataset
+    '''# load Stanford Sentiment Treebank (SST) dataset
     sst_dataset = load_dataset("glue", "sst2")
 
-    '''sst_dataset_train = sst_dataset['train']['sentence']
-    sst_dataset_test = sst_dataset['test']['sentence'] # labels are not included
-    sst_dataset_validation = sst_dataset['validation']['sentence']
-    #sst_dataset2 = sst_dataset_train + sst_dataset_test + sst_dataset_validatio
-
-    #all labels concatenated
-    #sst_dataset_labels = sst_dataset['train']['label'] + sst_dataset['test']['label'] + sst_dataset['validation']['label']'''
-
-
-    '''dataset = data_loaders.HANTextDataset(sst_dataset['train']['sentence'], sst_dataset['train']['label'], opts)
-    dataloader = data_loaders.MakeDataLoader(opts, dataset)
-    train_loader, test_loader = dataloader.train_loader, dataloader.test_loader'''
-
     train_set = data_loaders.HANTextDataset(sst_dataset['train']['sentence'], sst_dataset['train']['label'], opts)
+    embedding_matrix = train_set.embedding_matrix
+    vocab = train_set.vocab
+    train_set, test_set = torch.utils.data.random_split(train_set, [len(train_set)-2000, 2000])
     validation_set = data_loaders.HANTextDataset(sst_dataset['validation']['sentence'], sst_dataset['validation']['label'], opts,
-                                    vocab=train_set.vocab, embedding_matrix=train_set.embedding_matrix)
-    #test_set = data_loaders.HANTextDataset(sst_dataset['test']['sentence'], sst_dataset['test']['label'], opts,
-                              #vocab=train_set.vocab, embedding_matrix=train_set.embedding_matrix)
+                                    vocab=vocab, embedding_matrix=embedding_matrix)'''
+
+    '''# load IMDb dataset
+    imdb_dataset = load_dataset("imdb")
+
+    train_set = data_loaders.HANTextDataset(imdb_dataset['train']['text'], imdb_dataset['train']['label'], opts)
+    embedding_matrix = train_set.embedding_matrix
+    vocab = train_set.vocab
+    test_set = data_loaders.HANTextDataset(imdb_dataset['test']['text'], imdb_dataset['test']['label'], opts,
+                                    vocab=vocab, embedding_matrix=embedding_matrix)
+    test_set, validation_set = torch.utils.data.random_split(test_set, [len(test_set)-5000, 5000])'''
+
+    '''# load Twitter Adverse Drug Reaction (ADR) dataset 
+    
+    VERIFICARE
+    
+    twitter_dataset = load_dataset("tweet_eval", "sentiment")
+    train_set = data_loaders.HANTextDataset(twitter_dataset['train']['text'], twitter_dataset['train']['label'], opts)
+    embedding_matrix = train_set.embedding_matrix
+    vocab = train_set.vocab
+    test_set = data_loaders.HANTextDataset(twitter_dataset['test']['text'], twitter_dataset['test']['label'], opts,
+                                    vocab=vocab, embedding_matrix=embedding_matrix)
+    test_set, validation_set = torch.utils.data.random_split(test_set, [len(test_set)-2000, 2000])'''
+
+    '''# load 20 Newsgroups dataset
+    newsgroups_dataset = load_dataset("SetFit/20_newsgroups")
+    target_labels = ["9", "10"] # 9  is baseball and 10 is hockey
+    label_map = {"9": 0, "10": 1}
+    train_texts, train_labels = filter_and_remap(newsgroups_dataset, target_labels, label_map, 'train')
+    test_texts, test_labels = filter_and_remap(newsgroups_dataset, target_labels, label_map, 'test')
+    train_set = data_loaders.HANTextDataset(train_texts, train_labels, opts)
+    embedding_matrix = train_set.embedding_matrix
+    vocab = train_set.vocab
+    test_set = data_loaders.HANTextDataset(test_texts, test_labels, opts,
+                                    vocab=vocab, embedding_matrix=embedding_matrix)
+    test_set, validation_set = torch.utils.data.random_split(test_set, [len(test_set)-500, 500])'''
+
+    # load 20 Newsgroups dataset from sklearn
+    categories = ['rec.sport.baseball', 'rec.sport.hockey'] # 0 is baseball and 1 is hockey
+    train_data = fetch_20newsgroups(subset='train', categories=categories)
+    test_data = fetch_20newsgroups(subset='test', categories=categories)
+    train_set = data_loaders.HANTextDataset(train_data.data, train_data.target, opts)
+    embedding_matrix = train_set.embedding_matrix
+    vocab = train_set.vocab
+    test_set = data_loaders.HANTextDataset(test_data.data, test_data.target, opts,
+                                    vocab=vocab, embedding_matrix=embedding_matrix)
+    test_set, validation_set = torch.utils.data.random_split(test_set, [len(test_set)-500, 500])
 
 
-    dataloader = data_loaders.MakeDataLoader(opts, train_set, validation_set)
+
+    dataloader = data_loaders.MakeDataLoader(opts, train_set, validation_set, test_set)
     train_loader, validation_loader, test_loader = dataloader.train_loader, dataloader.validation_loader, dataloader.test_loader
 
     # Load the embedding matrix
     #embedding_matrix = dataset.embedding_matrix
-    embedding_matrix = train_set.embedding_matrix
+    #embedding_matrix = train_set.embedding_matrix
     model = han_model.HAN(opts, embedding_matrix)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    evaluate_obj = Evaluate.evaluate(opts)
+    evaluate_obj = evaluate.Evaluate(opts)
 
     # Grid search for the best learning rate
     best_lr = grid_search_lr(embedding_matrix, train_loader, validation_loader, torch.nn.CrossEntropyLoss(), opts, device, evaluate_obj)
@@ -184,12 +237,15 @@ def main(opts):
     evaluate_obj.plot_accuracy()
     evaluate_obj.plot_f1_score()
 
+    # load model
+    model.load_state_dict(torch.load("C:\\Users\\diges\\Desktop\\HAN\\final_model_sst2.pth"))
+
     # Evaluate the model on the test set
     print(f"Evaluating the model on the test set")
     test_acc = evaluate_obj.test_accuracy(model, test_loader, device)
     print(f"Test Accuracy: {test_acc:.6f}")
     test_f1 = evaluate_obj.test_f1_score(model, test_loader, device)
-    print(f"Validation F1 Score: {test_f1:.6f}")
+    print(f"Test F1 Score: {test_f1:.6f}")
 
     # Save the final model
     torch.save(model.state_dict(), "C:\\Users\\diges\\Desktop\\HAN\\final_model_sst2.pth")
@@ -200,44 +256,5 @@ if __name__ == '__main__':
     opts = yaml.load(open(parser.parse_args().config), Loader=yaml.Loader)
     opts = SimpleNamespace(**opts)
     opts.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    '''opts = SimpleNamespace(
-        # GRU model parameters
-        gru_input_dim=200,
-        gru_hidden_dim=50,
-        gru_bidirectional=True,
-        gru_output_dim=100,
-        gru_num_layers=1,
-
-        # Word embedding parameters
-        word_embedding_dim=200,
-        word_embedding_min_frequency=5,
-
-        # Batch parameters
-        batch_size=64,
-
-        # Training parameters
-        optimizer_type="SGD",
-        optimizer_momentum=0.9,
-        learning_rate_search=True,
-        epochs=10,
-
-        # Training settings
-        train_size=0.8,
-        test_size=0.1,
-        validation_size=0.1,
-
-        # Tokenization parameters
-        tokenization_tool="StanfordCoreNLP",
-        tokenization_annotators="tokenize,ssplit",
-
-        # Context vector initialization
-        context_vectors_random_init=True,
-        context_vectors_dim=100,
-
-        # Dataset parameters
-        num_classes=2,
-
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    )'''
     main(opts)
 
