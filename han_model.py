@@ -9,22 +9,25 @@ class WordAttention(nn.Module):
                           bidirectional=opts.gru_bidirectional)
         self.attention = nn.Linear(opts.gru_output_dim, opts.context_vectors_dim ) #* 2, 1)  # bidirectional
         self.context_vector = nn.Parameter(torch.randn(opts.context_vectors_dim))  # random initialization
+        self.frozen_attention = opts.frozen_attention
 
     def forward(self, word_embedding):
         """ Forward pass of the model, which is used to get the sentence vector. """
         h, _ = self.gru(word_embedding)  # gru encoding
 
-        '''print("=== DEBUG: WordAttention ===")
-        print("word_embedding shape:", word_embedding.shape)  # Deve essere (batch_size, seq_len, 200)
-        print("GRU output shape:", h.shape)  # Deve essere (batch_size, seq_len, 100)
-        print("============================")'''
+        if self.frozen_attention:
+            B, T, _ = h.size()
+            attention_weights = torch.ones(B, T, device=h.device) / T # uniform attention weights
+        else:
+            u = torch.tanh(self.attention(h))
+            attention_weights = torch.softmax(torch.matmul(u, self.context_vector), dim=1)  # Attention weights
 
-        u = torch.tanh(self.attention(h))
-        #print("u shape:", u.shape)
-        attention_weights = torch.softmax(torch.matmul(u, self.context_vector), dim=1)  # Attention weights
-        #print("attention_weights shape:", attention_weights.shape)
         sentence_vector = torch.sum(attention_weights.unsqueeze(-1) * h, dim=1)  # Sentence vector obtained by weighted sum
-        #print("sentence_vector shape:", sentence_vector.shape)
+
+        '''u = torch.tanh(self.attention(h))
+        attention_weights = torch.softmax(torch.matmul(u, self.context_vector), dim=1)  # Attention weights
+        sentence_vector = torch.sum(attention_weights.unsqueeze(-1) * h, dim=1)  # Sentence vector obtained by weighted sum'''
+
         return sentence_vector
 
 
@@ -36,21 +39,26 @@ class SentenceAttention(nn.Module):
         self.attention = nn.Linear(opts.gru_output_dim, opts.context_vectors_dim)  #* 2, 1)  # bidirectional
         self.context_vector = nn.Parameter(torch.randn(opts.context_vectors_dim))  # random initialization
         self.output_layer = nn.Linear(opts.context_vectors_dim, opts.num_classes)
+        self.frozen_attention = opts.frozen_attention
 
     def forward(self, sentence_embedding):
         """ Forward pass of the model, which is used to get the document vector. """
-
-        '''print("=== DEBUG: SentenceAttention ===")
-        print("sentence_embedding shape:", sentence_embedding.shape)  # Deve essere (batch_size, num_sentences, 100)
-        print("==============================")'''
-
         h, _ = self.gru(sentence_embedding)  # gru encoding
-        u = torch.tanh(self.attention(h))
+
+        if self.frozen_attention:
+            B, T, _ = h.size()
+            attention_weights = torch.ones(B, T, device=h.device) / T  # uniform attention weights
+        else:
+            u = torch.tanh(self.attention(h))
+            attention_weights = torch.softmax(torch.matmul(u, self.context_vector), dim=1)  # Attention weights
+        document_vector = torch.sum(attention_weights.unsqueeze(-1) * h, dim=1)  # Document vector obtained by weighted sum
+
+        '''u = torch.tanh(self.attention(h))
         #print("document u shape:", u.shape)
         attention_weights = torch.softmax(torch.matmul(u, self.context_vector.unsqueeze(0).transpose(0, 1)), dim=1) # Attention weights
         #print("document attention_weights shape:", attention_weights.shape)
         document_vector = torch.sum(attention_weights.expand(-1, -1, 100) * u, dim=1)  # Document vector obtained by weighted sum
-        #print("document_vector shape:", document_vector.shape)
+        #print("document_vector shape:", document_vector.shape)'''
         return self.output_layer(document_vector)
 
 
