@@ -4,6 +4,7 @@ gru_hidden_dim: 50          # GRU output dimension per word
 gru_bidirectional: true     # Use a bidirectional GRU
 gru_output_dim: 100         # Word/sentence annotation dimension (forward + backward)
 gru_num_layers: 1           # Number of GRU layers
+frozen_attention: true     # Freeze attention weights during training
 
 # Word embedding parameters
 word_embedding_dim: 200                # Word embedding dimension
@@ -15,20 +16,11 @@ batch_size: 64            # Batch size
 # Training parameters
 optimizer_type: "SGD"             # Optimizer type
 optimizer_momentum: 0.9           # Momentum for the SGD optimizer
-learning_rate_search: true        # Perform grid search to find the best learning rate
-epochs: 50                         # Number of epochs
+epochs: 50                        # Number of epochs
+dataset: sst2                     # Dataset to use
 
-# Training settings
-train_size: 0.8          # Training set size
-test_size: 0.1           # Test set size
-validation_size: 0.1     # Validation set size
-
-# Tokenization parameters
-tokenization_tool: "StanfordCoreNLP"  # Tokenization tool
-tokenization_annotators: "tokenize,ssplit"  # Annotators to use (tokenization and sentence splitting)
 
 # Context vector initialization
-context_vectors_random_init: true         # Random initialization of context vectors
 context_vectors_dim: 100                  # Dimension of word/sentence context vectors
 
 # Dataset parameters

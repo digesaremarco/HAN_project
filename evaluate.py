@@ -21,7 +21,6 @@ class Evaluate:
             for X, Y in test_loader:
                 X, Y = X.to(device), Y.to(device)
                 output = torch.softmax(model(X), dim=1)
-                # output = model(X)
                 predicted = torch.argmax(output, dim=1)
                 correct += (predicted == Y).sum().item()
                 total += Y.size(0)  # Number of samples
@@ -61,7 +60,6 @@ class Evaluate:
         plt.grid()
         plt.legend()
         plt.show()
-        plt.savefig('C:/Users/diges/Desktop/accuracy.png')
 
     def plot_f1_score(self):
         plt.plot(self.epoches, self.f1_scores, label='F1 Score')
@@ -70,4 +68,3 @@ class Evaluate:
         plt.grid()
         plt.legend()
         plt.show()
-        plt.savefig('C:/Users/diges/Desktop/f1_score.png')
