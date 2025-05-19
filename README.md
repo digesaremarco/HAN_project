@@ -1,17 +1,33 @@
 # HAN_project
 
-This project implements a **Hierarchical Attention Network (HAN)** for document classification, based on the architecture proposed by Yang et al. (2016). It leverages the hierarchical structure of documents—words forming sentences, and sentences forming documents—using attention mechanisms at both levels.
+The Hierarchical Attention Network (HAN) is a document classification model that leverages the inherent hierarchical structure of documents: words forming sentences, and sentences forming documents. It employs attention mechanisms at two levels to identify key words within sentences and key sentences within documents, focusing on the most relevant information for classification.
+
+### 🧱 Architecture in Brief
+
+1.  **Word Encoder:** Processes each sentence, transforming words into vector embeddings using a bidirectional recurrent neural network (Bi-RNN) to capture context.
+2.  **Word Attention Layer:** Assigns an importance weight to each word in the sentence, highlighting those most significant to the sentence's meaning within the document's context. Produces a weighted sentence representation vector.
+3.  **Sentence Encoder:** Processes the sequence of sentence vectors using another Bi-RNN to understand the relationships between sentences in the document.
+4.  **Sentence Attention Layer:** Assigns an importance weight to each sentence in the document, identifying those most crucial for classification. Produces a weighted document representation vector.
+5.  **Classification Layer:** Uses the document vector to predict the document's class via a fully connected layer and an activation function (e.g., softmax).
+
+### 💡 Why is it Effective?
+
+* **Hierarchical Structure:** Explicitly models the organization of documents.
+* **Interpretable Attention:** Indicates which words and sentences are most important.
+* **Focus on the Essential:** Ignores less relevant information.
+* **End-to-End Learning:** Optimizes the entire network for classification.
 
 ---
 
 ## 📁 Project Structure
 
-- **`han_model.py`**: Defines the HAN architecture with word-level and sentence-level attention.
-- **`train.py`**: Script to train the model with configuration from `config.yaml`.
-- **`evaluate.py`**: Script to evaluate the model's performance on a test set.
-- **`data_loaders.py`**: Utilities for loading and preprocessing datasets.
-- **`config.yaml`**: YAML configuration file for all parameters and paths.
-- **`.idea/`**: IDE project files (optional, used with PyCharm).
+This project is organized into the following key modules:
+
+-   **`han_model.py`**: Contains the definition of the Hierarchical Attention Network (HAN) architecture, including the implementation of word-level and sentence-level attention mechanisms.
+-   **`train.py`**: Provides the script for training the HAN model. It loads configuration parameters from the `config.yaml` file and orchestrates the training process.
+-   **`evaluate.py`**: Implements the script used to evaluate the trained model's performance on a designated test dataset.
+-   **`data_loaders.py`**: Includes utility functions and classes responsible for loading and preprocessing the datasets used for training and evaluation. This module likely handles tokenization and batching.
+-   **`config.yaml`**: Serves as the central configuration file, storing all relevant parameters such as file paths, hyperparameters for the model, and training settings.
 
 ---
 

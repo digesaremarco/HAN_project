@@ -1,0 +1,12 @@
+numpy
+requests
+pyyaml
+gensim
+torch
+torchvision
+datasets
+evaluate
+scikit-learn
+matplotlib
+tqdm
+nltk
